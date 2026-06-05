@@ -9,23 +9,14 @@
   <meta name="theme-color" content="#fd6e44"/>
   <title>O-Go!</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  
-  <link rel="stylesheet" href="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/default.css">
-  <script src="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/index.min.js"></script>
-  <script src="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/scroll-behaviour.min.js"></script>
-  <script>
-    Polyfill.DragDropTouch({
-      forceTouch: true,
-      holdToDrag: 300
-    });
-  </script>
+
   <style>
-    /* 🛠️ 在 * 裡面加上了防止手機長按選取文字的功能 */
     *{
       box-sizing:border-box;
       margin:0;
       padding:0;
       -webkit-tap-highlight-color:transparent;
+      /* 禁用手機長按時跳出系統選取文字的藍色框框與選單 */
       -webkit-touch-callout: none;
       -webkit-user-select: none;
       user-select: none;
@@ -44,6 +35,68 @@
     ::-webkit-scrollbar{display:none;}
     select{-webkit-appearance:auto;}
   </style>
+
+  <!-- 🛠️ 暴力破解：全域手機觸控轉滑鼠事件腳本 -->
+  <script>
+    (function() {
+      let touchTimeout;
+      let isDragging = false;
+
+      function touchHandler(event) {
+        const touches = event.changedTouches, first = touches[0];
+        let type = "";
+
+        switch(event.type) {
+          case "touchstart": 
+            // 模擬滑鼠移入，並準備長按觸發
+            type = "mouseover"; 
+            clearTimeout(touchTimeout);
+            touchTimeout = setTimeout(() => {
+              isDragging = true;
+              dispatch(event, "mousedown", first);
+              dispatch(event, "dragstart", first);
+            }, 250); // 長按 250 毫秒後強制啟動拖曳
+            break;
+          case "touchmove": 
+            if (!isDragging) {
+              clearTimeout(touchTimeout);
+              return; // 如果不是在拖曳，允許正常的網頁滾動
+            }
+            event.preventDefault(); // 阻止網頁滾動
+            type = "mousemove"; 
+            
+            // 強制幫 HTML5 找到目前手指下方的元素（ because touchmove target won't change ）
+            let element = document.elementFromPoint(first.clientX, first.clientY);
+            if (element) {
+              let dragEnterEvent = document.createEvent("MouseEvent");
+              dragEnterEvent.initMouseEvent("dragenter", true, true, window, 1, first.screenX, first.screenY, first.clientX, first.clientY, false, false, false, false, 0, null);
+              element.dispatchEvent(dragEnterEvent);
+            }
+            break;
+          case "touchend": 
+            clearTimeout(touchTimeout);
+            if (!isDragging) return;
+            isDragging = false;
+            type = "mouseup"; 
+            dispatch(event, "dragend", first);
+            break;
+          default: return;
+        }
+
+        if (type) dispatch(event, type, first);
+      }
+
+      function dispatch(event, type, touch) {
+        const simulatedEvent = document.createEvent("MouseEvent");
+        simulatedEvent.initMouseEvent(type, true, true, window, 1, touch.screenX, touch.screenY, touch.clientX, touch.clientY, false, false, false, false, 0, null);
+        event.target.dispatchEvent(simulatedEvent);
+      }
+
+      document.addEventListener("touchstart", touchHandler, { passive: false });
+      document.addEventListener("touchmove", touchHandler, { passive: false });
+      document.addEventListener("touchend", touchHandler, { passive: false });
+    })();
+  </script>
 </head>
     
 <body>
