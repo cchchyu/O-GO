@@ -314,13 +314,13 @@ function DateSelect({ label, value, onChange }) {
         <IcCalendar color={C.accent} size={18}/>
         <select value={vy} onChange={e => build(e.target.value, vm||"01", vd||"01")} style={ss}>
           <option value="">年</option>
-          {[2024,2025,2026,2027,2028].map(y => <option key={y} value={String(y)}>{y}年</option>)}
+         {[2026,2027,2028,2029,2030].map(y => <option key={y} value={String(y)}>{y}年</option>)}
         </select>
-        <select value={vm} onChange={e => build(vy||"2025", e.target.value, vd||"01")} style={ss}>
+        <select value={vm} onChange={e => build(vy||"2026", e.target.value, vd||"01")} style={ss}>
           <option value="">月</option>
           {Array.from({length:12},(_,i) => String(i+1).padStart(2,"0")).map(m => <option key={m} value={m}>{Number(m)}月</option>)}
         </select>
-        <select value={vd} onChange={e => build(vy||"2025", vm||"01", e.target.value)} style={ss}>
+        <select value={vd} onChange={e => build(vy||"2026", vm||"01", e.target.value)} style={ss}>
           <option value="">日</option>
           {Array.from({length:31},(_,i) => String(i+1).padStart(2,"0")).map(d => <option key={d} value={d}>{Number(d)}日</option>)}
         </select>
