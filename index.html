@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="O-Go!"/>
+  <meta name="theme-color" content="#fd6e44"/>
+  <title>O-Go!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  
+  <link rel="stylesheet" href="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/default.css">
+  <script src="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/index.min.js"></script>
+  <script src="https://unpkg.com/mobile-drag-drop@3.0.0-rc.0/scroll-behaviour.min.js"></script>
+  <script>
+    Polyfill.DragDropTouch({
+      forceTouch: true,
+      holdToDrag: 300
+    });
+  </script>
+  <style>
+    /* 🛠️ 在 * 裡面加上了防止手機長按選取文字的功能 */
+    *{
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+      -webkit-tap-highlight-color:transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    html,body,#root{width:100%;height:100%;background:#fff;}
+    body{font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;overscroll-behavior:none;}
+    #root{display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideLeft{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes slideRight{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(0.94)}100%{transform:scale(1)}}
+    .fade-in{animation:fadeIn 0.22s ease both}
+    .slide-left{animation:slideLeft 0.22s ease both}
+    .slide-right{animation:slideRight 0.22s ease both}
+    .btn-pop:active{animation:pop 0.15s ease}
+    ::-webkit-scrollbar{display:none;}
+    select{-webkit-appearance:auto;}
+  </style>
+</head>
+    
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const C = {
+  accent:"#fd6e44", text:"#1a1a1a", textSub:"#666666",
+  textHint:"#a9a9a9", bg:"#ffffff", bgInput:"#f9f9f9",
+  line:"rgba(84,84,86,0.2)", lineStrong:"#c6c6c8",
+};
+const FF = "'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif";
+const tx = s => ({ fontFamily:FF, ...s });
+const T = {
+  title:    { fontSize:24, fontWeight:700 },
+  headline: { fontSize:17, fontWeight:600 },
+  label:    { fontSize:15, fontWeight:600 },
+  body:     { fontSize:17, fontWeight:400 },
+  input:    { fontSize:14, fontWeight:400 },
+  caption:  { fontSize:12, fontWeight:500 },
+  capSub:   { fontSize:12, fontWeight:400 },
+};
+
+const COVER_GRADIENTS = [
+  "linear-gradient(135deg,#ffd6c4,#fd6e44)",
+  "linear-gradient(135deg,#c4d6ff,#4a90d9)",
+  "linear-gradient(135deg,#c4ffd6,#2ecc71)",
+  "linear-gradient(135deg,#f9c4ff,#9b59b6)",
+  "linear-gradient(135deg,#fff3c4,#f39c12)",
+];
+const HIDE_DEFAULT = ["淺草寺","上野公園"];
+
+const SPOT_DB = {
+  japan: [
+    { name:"淺草寺", area:"東京・淺草", tags:["寺廟","文化"], intro:"淺草寺是東京最古老的寺廟，建於628年，供奉觀音菩薩。雷門大燈籠是最具代表性的地標。", phone:"03-3842-0181", address:"東京都台東区浅草2-3-1", rating:5 },
+    { name:"上野公園", area:"東京・上野", tags:["公園","博物館"], intro:"上野公園是東京最著名的公園之一，春天賞櫻絕景，園內有東京國立博物館等多座世界級博物館。", phone:"03-3828-5644", address:"東京都台東区上野公園", rating:5 },
+    { name:"新宿御苑", area:"東京・新宿", tags:["公園","自然"], intro:"新宿御苑是東京最大的國家公園，融合日式、法式、英式三種庭園風格，面積達58公頃。", phone:"03-3350-0151", address:"東京都新宿区内藤町11", rating:4 },
+    { name:"東京晴空塔", area:"東京・墨田", tags:["展望台","地標"], intro:"東京晴空塔高634公尺，是世界第二高建築，展望台可將整個東京盡收眼底。", phone:"0570-55-0634", address:"東京都墨田区押上1-1-2", rating:5 },
+    { name:"澀谷十字路口", area:"東京・澀谷", tags:["景點","購物"], intro:"澀谷十字路口是全球最繁忙的行人穿越道，是東京最具代表性的都市景觀。", phone:"", address:"東京都澀谷区道玄坂2丁目", rating:4 },
+    { name:"築地市場", area:"東京・中央", tags:["美食","市場"], intro:"築地外市場是東京最知名的海鮮市集，提供最道地的海鮮料理。", phone:"03-3541-9421", address:"東京都中央区築地4-16-2", rating:4 },
+    { name:"明治神宮", area:"東京・原宿", tags:["神社","文化"], intro:"明治神宮是東京最重要的神社之一，佔地廣闊，林木茂密。", phone:"03-3379-5511", address:"東京都渋谷区代々木神園町1-1", rating:5 },
+    { name:"秋葉原", area:"東京・千代田", tags:["購物","文化"], intro:"秋葉原是全球知名的電器與動漫聖地。", phone:"", address:"東京都千代田区外神田", rating:4 },
+    { name:"奧入瀨溪", area:"青森・十和田", tags:["自然","健行"], intro:"奧入瀨溪是青森縣最著名的溪谷，秋季楓葉景色絕美。", phone:"", address:"青森県十和田市大字奥瀬字栃久保183", rating:5 },
+    { name:"富士山", area:"山梨・靜岡", tags:["自然","地標"], intro:"富士山是日本最高峰，海拔3776公尺，被列為世界文化遺產。", phone:"", address:"山梨県・静岡県境", rating:5 },
+    { name:"金閣寺", area:"京都・北區", tags:["寺廟","文化"], intro:"金閣寺以金箔覆蓋的舍利殿聞名，倒映在鏡湖池的金色建築是京都最具代表性的景觀。", phone:"075-461-0013", address:"京都府京都市北区金閣寺町1", rating:5 },
+    { name:"伏見稻荷大社", area:"京都・伏見", tags:["神社","文化"], intro:"以千本鳥居聞名，橙紅色鳥居蜿蜒山道綿延約4公里。", phone:"075-641-7331", address:"京都府京都市伏見区深草藪之内町68", rating:5 },
+    { name:"道頓堀", area:"大阪・中央", tags:["美食","購物"], intro:"道頓堀是大阪最熱鬧的美食街，格力高跑者招牌是大阪最具代表性的地標。", phone:"", address:"大阪府大阪市中央区道頓堀", rating:4 },
+    { name:"箱根", area:"神奈川・箱根", tags:["溫泉","自然"], intro:"箱根是東京近郊最著名的溫泉度假勝地，可眺望富士山。", phone:"", address:"神奈川県足柄下郡箱根町", rating:4 },
+  ],
+  korea: [
+    { name:"景福宮", area:"首爾・景福宮", tags:["宮殿","文化"], intro:"景福宮建於1395年，是朝鮮王朝的正宮，可觀賞守門將交接儀式。", phone:"02-3700-3900", address:"서울 종로구 사직로 161", rating:5 },
+    { name:"北村韓屋村", area:"首爾・鐘路", tags:["歷史","文化"], intro:"北村韓屋村是首爾保存最完整的傳統韓式建築群。", phone:"", address:"서울 종로구 계동길 37", rating:4 },
+    { name:"明洞", area:"首爾・中區", tags:["購物","美食"], intro:"明洞是首爾最熱鬧的購物街，匯集各大品牌旗艦店。", phone:"", address:"서울 중구 명동길 14", rating:4 },
+    { name:"南山首爾塔", area:"首爾・龍山", tags:["展望台","地標"], intro:"南山首爾塔是首爾最著名的地標，海拔479公尺。", phone:"02-3455-9277", address:"서울 용산구 남산공원길 105", rating:5 },
+    { name:"弘大", area:"首爾・麻浦", tags:["購物","文化"], intro:"弘大是首爾最具活力的年輕人聚集地。", phone:"", address:"서울 마포구 와우산로", rating:4 },
+    { name:"漢拏山", area:"濟州・濟州市", tags:["自然","健行"], intro:"漢拏山是韓國最高峰，海拔1950公尺，被列為世界自然遺產。", phone:"064-713-9950", address:"제주특별자치도 제주시 1100로 2070-61", rating:5 },
+    { name:"釜山海雲台", area:"釜山・海雲台", tags:["海灘","自然"], intro:"海雲台是韓國最著名的海灘，夏季吸引大量遊客。", phone:"", address:"부산광역시 해운대구 해운대해변로", rating:4 },
+  ],
+  southeast: [
+    { name:"吳哥窟", area:"柬埔寨・暹粒", tags:["文化遺產","寺廟"], intro:"吳哥窟建於12世紀，是世界上最大的宗教建築群，被列為世界文化遺產。", phone:"", address:"Krong Siem Reap, Cambodia", rating:5 },
+    { name:"臥佛寺", area:"泰國・曼谷", tags:["寺廟","文化"], intro:"臥佛寺供奉全泰國最大的臥佛，長46公尺。", phone:"+66-2-226-0335", address:"2 Sanam Chai Rd, Bangkok", rating:4 },
+    { name:"哈隆灣", area:"越南・廣寧", tags:["自然","遊船"], intro:"哈隆灣擁有超過1600個石灰岩島嶼，被列為世界自然遺產。", phone:"", address:"Quang Ninh, Viet Nam", rating:5 },
+    { name:"巴厘島烏布", area:"印尼・巴厘島", tags:["文化","自然"], intro:"烏布是巴厘島的文化中心，以傳統藝術、寺廟和梯田著稱。", phone:"", address:"Ubud, Bali, Indonesia", rating:5 },
+    { name:"清邁古城", area:"泰國・清邁", tags:["文化","寺廟"], intro:"清邁古城擁有超過300座寺廟，是泰北最重要的文化中心。", phone:"", address:"Chiang Mai, Thailand", rating:4 },
+  ],
+};
+const ALL_SPOTS = [...SPOT_DB.japan, ...SPOT_DB.korea, ...SPOT_DB.southeast];
+const COUNTRY_TABS = [{ id:"japan", label:"日本" }, { id:"korea", label:"韓國" }, { id:"southeast", label:"東南亞" }];
+
+// ── Icons ─────────────────────────────────────────────────────────────────
+const IcHome = ({ color=C.textHint, size=28 }) => (
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
+    <path d="M14.99 3.21C14.44 2.66 13.56 2.66 13.01 3.21L3.21 13.01C2.66 13.56 2.66 14.44 3.21 14.99C3.76 15.54 4.64 15.54 5.19 14.99L5.6 14.58V23.8C5.6 24.57 6.23 25.2 7 25.2H9.8C10.57 25.2 11.2 24.57 11.2 23.8V21C11.2 20.23 11.83 19.6 12.6 19.6H15.4C16.17 19.6 16.8 20.23 16.8 21V23.8C16.8 24.57 17.43 25.2 18.2 25.2H21C21.77 25.2 22.4 24.57 22.4 23.8V14.58L22.81 14.99C23.36 15.54 24.24 15.54 24.79 14.99C25.34 14.44 25.34 13.56 24.79 13.01L14.99 3.21Z" fill={color}/>
+  </svg>
+);
+const IcFolder = ({ color=C.textHint, size=28 }) => (
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
+    <path d="M2.8 8.4C2.8 6.85 4.05 5.6 5.6 5.6H12.6L15.4 8.4H22.4C23.95 8.4 25.2 9.65 25.2 11.2V19.6C25.2 21.15 23.95 22.4 22.4 22.4H5.6C4.05 22.4 2.8 21.15 2.8 19.6V8.4Z" fill={color}/>
+  </svg>
+);
+const IcPlus = ({ color=C.textHint, size=28 }) => (
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
+    <line x1="5.5" y1="14" x2="22.5" y2="14" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+    <line x1="14" y1="22.5" x2="14" y2="5.5" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+  </svg>
+);
+const IcUser = ({ color=C.textHint, size=28 }) => (
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M25.2 14C25.2 20.19 20.19 25.2 14 25.2C7.81 25.2 2.8 20.19 2.8 14C2.8 7.81 7.81 2.8 14 2.8C20.19 2.8 25.2 7.81 25.2 14ZM16.8 9.8C16.8 11.35 15.55 12.6 14 12.6C12.45 12.6 11.2 11.35 11.2 9.8C11.2 8.25 12.45 7 14 7C15.55 7 16.8 8.25 16.8 9.8ZM14 15.4C11.18 15.4 8.74 17.07 7.64 19.48C9.18 21.27 11.46 22.4 14 22.4C16.54 22.4 18.82 21.27 20.36 19.48C19.26 17.07 16.82 15.4 14 15.4Z" fill={color}/>
+  </svg>
+);
+const IcMap = ({ color=C.text, size=24 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <path d="M21.33 8L10.67 2.67L1.33 8V29.33L10.67 24M21.33 8L30.67 2.67V24L21.33 29.33L10.67 24M10.67 24V2.67M21.33 29.33V8" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IcShare = ({ color=C.text, size=24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M4 12V20C4 20.53 4.21 21.04 4.59 21.41C4.96 21.79 5.47 22 6 22H18C18.53 22 19.04 21.79 19.41 21.41C19.79 21.04 20 20.53 20 20V12M8 6L12 2L16 6M12 2V15" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IcHeart = ({ filled=false, size=24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M20.84 4.61C19.79 3.56 18.37 3 16.95 3C15.53 3 14.11 3.56 13.06 4.61L12 5.67L10.94 4.61C8.83 2.5 5.41 2.5 3.16 4.61C0.91 6.72 1.08 10.19 3.16 12.39L12 21.23L20.84 12.39C22.92 10.19 22.92 6.72 20.84 4.61Z" fill={filled?C.accent:"none"} stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IcCalendar = ({ color=C.accent, size=16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M16 2V6M8 2V6M3 10H21M5 4H19C20.1 4 21 4.9 21 6V20C21 21.1 20.1 22 19 22H5C3.9 22 3 21.1 3 20V6C3 4.9 3.9 4 5 4Z" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+const IcSettings = ({ color=C.textHint, size=22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="3" stroke={color} strokeWidth="2"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke={color} strokeWidth="2"/>
+  </svg>
+);
+const IcBack = () => (
+  <svg width={11} height={19} viewBox="0 0 11 19" fill="none">
+    <path d="M0 9.26C0 9.1 0.03 8.95 0.08 8.82C0.14 8.68 0.24 8.56 0.37 8.43L8.77 0.31C8.98 0.1 9.23 0 9.53 0C9.73 0 9.91 0.05 10.07 0.15C10.23 0.24 10.36 0.37 10.46 0.53C10.56 0.69 10.61 0.87 10.61 1.07C10.61 1.36 10.5 1.62 10.28 1.84L2.58 9.26L10.28 16.68C10.5 16.9 10.61 17.15 10.61 17.45C10.61 17.65 10.56 17.84 10.46 18C10.36 18.16 10.23 18.29 10.07 18.39C9.91 18.48 9.73 18.53 9.53 18.53C9.23 18.53 8.98 18.43 8.77 18.22L0.37 10.09C0.24 9.97 0.14 9.84 0.08 9.71C0.03 9.57 0 9.42 0 9.26Z" fill={C.text}/>
+  </svg>
+);
+const IcCamera = ({ size=22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M23 19C23 19.53 22.79 20.04 22.41 20.41C22.04 20.79 21.53 21 21 21H3C2.47 21 1.96 20.79 1.59 20.41C1.21 20.04 1 19.53 1 19V8C1 7.47 1.21 6.96 1.59 6.59C1.96 6.21 2.47 6 3 6H7L9 3H15L17 6H21C21.53 6 22.04 6.21 22.41 6.59C22.79 6.96 23 7.47 23 8V19Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="12" cy="13" r="4" stroke="white" strokeWidth="2"/>
+  </svg>
+);
+const IcDots = () => (
+  <svg width={38} height={60} viewBox="0 0 38 60" fill="none">
+    <circle cx="19.08" cy="30" r="2.08" fill="#C4C4C6"/>
+    <circle cx="19.08" cy="23.08" r="2.08" fill="#C4C4C6"/>
+    <circle cx="19.08" cy="36.92" r="2.08" fill="#C4C4C6"/>
+  </svg>
+);
+const IcGrabber = () => (
+  <svg width={49} height={60} viewBox="0 0 49 60" fill="none">
+    <mask id="g1" fill="white"><path d="M0 0H49V60H0V0Z"/></mask>
+    <path d="M0 60H0.5V0H0H-0.5V60H0Z" fill="#C6C6C8" mask="url(#g1)"/>
+    <path d="M16.74 34.71C16.51 34.71 16.32 34.62 16.15 34.45C15.99 34.28 15.91 34.07 15.91 33.84C15.91 33.61 15.99 33.42 16.15 33.25C16.31 33.09 16.51 33 16.74 33H32.25C32.48 33 32.67 33.09 32.83 33.25C33 33.42 33.08 33.61 33.08 33.84C33.08 34.07 33 34.28 32.83 34.45C32.67 34.62 32.48 34.71 32.25 34.71H16.74ZM16.74 30.86H32.25C32.48 30.86 32.67 30.78 32.83 30.61C33 30.44 33.08 30.24 33.08 30.02C33.08 29.78 33 29.58 32.83 29.42C32.67 29.25 32.48 29.16 32.25 29.16H16.74C16.51 29.16 16.32 29.25 16.15 29.42C15.99 29.58 15.91 29.78 15.91 30.02C15.91 30.24 15.99 30.44 16.15 30.61C16.32 30.78 16.51 30.86 16.74 30.86ZM16.74 27.04H32.25C32.48 27.04 32.67 26.95 32.83 26.79C33 26.61 33.08 26.42 33.08 26.19C33.08 25.96 33 25.76 32.83 25.59C32.67 25.42 32.48 25.34 32.25 25.34H16.74C16.51 25.34 16.32 25.42 16.15 25.59C15.99 25.76 15.91 25.96 15.91 26.19C15.91 26.42 15.99 26.61 16.15 26.79C16.32 26.95 16.51 27.04 16.74 27.04Z" fill="#3C3C43" fillOpacity="0.3"/>
+  </svg>
+);
+
+function StarRow({ count, size=14 }) {
+  return (
+    <div style={{ display:"flex", gap:2 }}>
+      {[1,2,3,4,5].map(i => (
+        <svg key={i} width={size} height={size} viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.5L8.5 5H12L9 7.5L10 11L7 9L4 11L5 7.5L2 5H5.5L7 1.5Z" fill={i<=count?C.accent:"none"} stroke={i<=count?C.accent:C.textHint} strokeWidth="0.8"/>
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+function GlassBar({ onBack, rightSlot }) {
+  return (
+    <div style={{ display:"flex", justifyContent:"space-between", padding:"0 16px 8px", alignItems:"center" }}>
+      <button onClick={onBack} style={{ background:"rgba(255,255,255,0.65)", backdropFilter:"blur(8px)", border:"none", borderRadius:296, width:44, height:44, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+        <IcBack/>
+      </button>
+      {rightSlot}
+    </div>
+  );
+}
+
+function NavBar({ title, onBack, right }) {
+  return (
+    <div style={{ height:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"0.5px solid "+C.line, flexShrink:0, background:C.bg }}>
+      {onBack
+        ? <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", padding:"8px 0", display:"flex", alignItems:"center", gap:6, minWidth:60 }}>
+            <IcBack/><span style={{ ...tx(T.body), color:C.text }}>返回</span>
+          </button>
+        : <div style={{ minWidth:60 }}/>}
+      <span style={{ ...tx(T.headline), color:C.text }}>{title}</span>
+      <div style={{ minWidth:60, display:"flex", justifyContent:"flex-end" }}>{right}</div>
+    </div>
+  );
+}
+
+function OrangeBtn({ label, onClick }) {
+  return (
+    <button onClick={onClick} className="btn-pop" style={{ width:"100%", background:C.accent, color:C.bg, border:"none", borderRadius:8, padding:"13px 0", ...tx(T.headline), cursor:"pointer" }}>
+      {label}
+    </button>
+  );
+}
+
+function SegCtrl({ options, active, onChange }) {
+  return (
+    <div style={{ display:"flex", background:"#f2f2f7", borderRadius:9, padding:2, margin:"16px 24px" }}>
+      {options.map(o => (
+        <button key={o} onClick={() => onChange(o)} style={{ flex:1, background:active===o?C.bg:"transparent", border:"none", borderRadius:7, padding:"7px 0", fontSize:14, fontWeight:active===o?600:400, fontFamily:FF, color:active===o?C.text:C.textHint, cursor:"pointer", boxShadow:active===o?"0 1px 4px rgba(0,0,0,0.12)":"none" }}>
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DateSelect({ label, value, onChange }) {
+  const vy = value ? value.slice(0,4) : "";
+  const vm = value ? value.slice(5,7) : "";
+  const vd = value ? value.slice(8,10) : "";
+  const build = (y, m, d) => { if (y && m && d) onChange(y+"-"+m+"-"+d); };
+  const ss = { border:"none", background:"transparent", fontFamily:FF, fontSize:14, fontWeight:600, color:value?C.accent:C.textHint, outline:"none", cursor:"pointer", flex:1 };
+  return (
+    <div>
+      <div style={{ ...tx(T.capSub), color:C.textHint, marginBottom:4 }}>{label}</div>
+      <div style={{ background:C.bgInput, border:"1px solid rgba(100,116,139,0.4)", borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:8 }}>
+        <IcCalendar color={C.accent} size={18}/>
+        <select value={vy} onChange={e => build(e.target.value, vm||"01", vd||"01")} style={ss}>
+          <option value="">年</option>
+          {[2024,2025,2026,2027,2028].map(y => <option key={y} value={String(y)}>{y}年</option>)}
+        </select>
+        <select value={vm} onChange={e => build(vy||"2025", e.target.value, vd||"01")} style={ss}>
+          <option value="">月</option>
+          {Array.from({length:12},(_,i) => String(i+1).padStart(2,"0")).map(m => <option key={m} value={m}>{Number(m)}月</option>)}
+        </select>
+        <select value={vd} onChange={e => build(vy||"2025", vm||"01", e.target.value)} style={ss}>
+          <option value="">日</option>
+          {Array.from({length:31},(_,i) => String(i+1).padStart(2,"0")).map(d => <option key={d} value={d}>{Number(d)}日</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function TabBar({ active, onChange }) {
+  const tabs = [
+    { id:"home", Ic:IcHome, label:"探索" },
+    { id:"trips", Ic:IcFolder, label:"我的行程" },
+    { id:"create", Ic:IcPlus, label:"建立行程" },
+    { id:"profile", Ic:IcUser, label:"個人" },
+  ];
+  return (
+    <div style={{ background:"rgba(248,248,248,0.95)", backdropFilter:"blur(6.5px)", borderTop:"0.5px solid "+C.lineStrong, display:"flex", padding:"8px 0", paddingBottom:"calc(8px + env(safe-area-inset-bottom))", flexShrink:0 }}>
+      {tabs.map(({ id, Ic, label }) => {
+        const on = active===id;
+        return (
+          <button key={id} onClick={() => onChange(id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:0 }}>
+            <Ic color={on?C.accent:C.textHint} size={28}/>
+            <span style={{ ...tx(T.caption), color:on?C.accent:C.textHint }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HomeScreen() {
+  const featured = [{ name:"東京三日遊", days:3, grad:COVER_GRADIENTS[0] }, { name:"京都古蹟行", days:4, grad:COVER_GRADIENTS[1] }];
+  return (
+    <div style={{ flex:1, overflowY:"auto" }} className="fade-in">
+      <div style={{ padding:"12px 24px 8px" }}>
+        <div style={{ fontFamily:FF, fontSize:22, fontWeight:700, color:C.text, lineHeight:1.4, marginBottom:16 }}>挑選一趟<br/>適合自己的旅程吧！</div>
+        <div style={{ background:"#f2f2f7", borderRadius:10, padding:"8px 14px", display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textHint} strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span style={{ ...tx(T.input), color:C.textHint }}>搜尋目的地或行程</span>
+        </div>
+        <div style={{ display:"flex", gap:8, marginBottom:20, overflowX:"auto" }}>
+          {["全部","日本","韓國","東南亞","歐洲"].map((t,i) => (
+            <span key={t} style={{ flexShrink:0, background:i===0?C.accent:"#f2f2f7", color:i===0?C.bg:C.text, borderRadius:16, padding:"5px 14px", ...tx(T.caption), cursor:"pointer" }}>{t}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{ padding:"0 24px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <span style={{ ...tx(T.label), color:C.text }}>熱門行程</span>
+          <span style={{ ...tx(T.caption), color:C.accent }}>查看更多</span>
+        </div>
+        <div style={{ display:"flex", gap:16, overflowX:"auto", marginBottom:24, paddingBottom:4 }}>
+          {featured.map(f => (
+            <div key={f.name} style={{ flexShrink:0, width:180, height:160, borderRadius:16, background:f.grad, padding:16, display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
+              <div style={{ ...tx(T.label), color:C.bg }}>{f.name}</div>
+              <div style={{ ...tx(T.capSub), color:"rgba(255,255,255,0.85)", marginTop:2 }}>{f.days} 天行程</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <span style={{ ...tx(T.label), color:C.text }}>您可能會喜歡</span>
+          <span style={{ ...tx(T.caption), color:C.accent }}>查看更多</span>
+        </div>
+        {SPOT_DB.japan.filter(s => !HIDE_DEFAULT.includes(s.name)).slice(0,4).map(s => (
+          <div key={s.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom:"0.5px solid "+C.line }}>
+            <div style={{ width:56, height:56, borderRadius:12, background:COVER_GRADIENTS[0], flexShrink:0 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ ...tx(T.label), color:C.text }}>{s.name}</div>
+              <div style={{ ...tx(T.capSub), color:C.textHint, marginTop:2 }}>{s.area}</div>
+            </div>
+            <StarRow count={s.rating}/>
+          </div>
+        ))}
+        <div style={{ height:20 }}/>
+      </div>
+    </div>
+  );
+}
+
+function TripsScreen({ trips, onOpen }) {
+  const [seg, setSeg] = useState("尚未開始");
+  const today = new Date().toISOString().slice(0,10);
+  const list = trips.filter(t => seg==="尚未開始" ? t.startDate>=today : t.endDate<today);
+  return (
+    <div style={{ flex:1, overflowY:"auto" }} className="fade-in">
+      <SegCtrl options={["尚未開始","已結束"]} active={seg} onChange={setSeg}/>
+      <div style={{ padding:"0 24px" }}>
+        {list.length===0
+          ? <div style={{ textAlign:"center", padding:"60px 0", ...tx(T.body), color:C.textHint, lineHeight:1.8 }}>
+              {seg==="尚未開始"?"還沒有規劃中的行程":"還沒有已結束的行程"}<br/>點「建立行程」開始規劃！
+            </div>
+          : list.map(t => {
+              const idx = trips.indexOf(t);
+              return (
+                <div key={idx} onClick={() => onOpen(idx)} className="btn-pop" style={{ marginBottom:16, borderRadius:16, overflow:"hidden", boxShadow:"0 2px 12px rgba(0,0,0,0.08)", cursor:"pointer" }}>
+                  <div style={{ height:100, background:t.cover||COVER_GRADIENTS[0] }}/>
+                  <div style={{ background:C.bg, padding:"14px 16px" }}>
+                    <div style={{ ...tx(T.headline), color:C.text }}>{t.name}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
+                      <span style={{ ...tx(T.caption), color:C.accent }}>{t.startDate} ~ {t.endDate}</span>
+                      <span style={{ fontFamily:FF, fontSize:11, fontWeight:500, color:C.bg, background:seg==="尚未開始"?C.accent:C.textHint, borderRadius:20, padding:"2px 8px" }}>
+                        {seg==="尚未開始"?"尚未開始":"已結束"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+        }
+      </div>
+    </div>
+  );
+}
+
+function ProfileScreen() {
+  const [seg, setSeg] = useState("喜歡的景點");
+  return (
+    <div style={{ flex:1, overflowY:"auto" }} className="fade-in">
+      <div style={{ padding:"12px 24px 0" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <span style={{ ...tx(T.title), color:C.text }}>個人中心</span>
+          <button style={{ background:"none", border:"none", cursor:"pointer" }}><IcSettings/></button>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:20 }}>
+          <div style={{ width:64, height:64, borderRadius:"50%", background:COVER_GRADIENTS[0], marginBottom:12 }}/>
+          <div style={{ ...tx(T.headline), color:C.text }}>User Name 1234</div>
+          <div style={{ ...tx(T.capSub), color:C.textHint, textAlign:"center", marginTop:4 }}>旅遊愛好者・已規劃 7 趟旅程</div>
+        </div>
+        <div style={{ display:"flex", background:C.bgInput, borderRadius:16, padding:"16px 0", marginBottom:4 }}>
+          {[["07","我的行程"],["24","喜歡的景點"],["03","收藏範本"]].map(([n,l],i) => (
+            <div key={l} style={{ flex:1, textAlign:"center", borderRight:i<2?"1px solid "+C.lineStrong:"none" }}>
+              <div style={{ ...tx(T.title), color:C.accent }}>{n}</div>
+              <div style={{ ...tx(T.capSub), color:C.textHint, marginTop:2 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <SegCtrl options={["喜歡的景點","收藏範本"]} active={seg} onChange={setSeg}/>
+      <div style={{ padding:"0 24px" }}>
+        {seg==="喜歡的景點" && SPOT_DB.japan.filter(s => !HIDE_DEFAULT.includes(s.name)).slice(0,3).map(s => (
+          <div key={s.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom:"0.5px solid "+C.line }}>
+            <div style={{ width:48, height:48, borderRadius:10, background:COVER_GRADIENTS[0], flexShrink:0 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ ...tx(T.label), color:C.text }}>{s.name}</div>
+              <div style={{ ...tx(T.capSub), color:C.textHint }}>{s.area}</div>
+            </div>
+            <IcHeart filled size={20}/>
+          </div>
+        ))}
+        {seg==="收藏範本" && <div style={{ textAlign:"center", padding:"40px 0", ...tx(T.body), color:C.textHint }}>尚無收藏範本</div>}
+        <div style={{ height:20 }}/>
+      </div>
+    </div>
+  );
+}
+
+function CreateScreen({ onCreated }) {
+  const [name, setName] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [cover, setCover] = useState(0);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!start) return;
+    const sy = start.slice(0,4), sm = start.slice(5,7);
+    const ed = end ? end.slice(8,10) : "";
+    setEnd(sy+"-"+sm+"-"+(ed||"01"));
+  }, [start.slice(0,7)]);
+
+  const go = () => {
+    if (!name.trim()) { setErr("請輸入行程名稱"); return; }
+    if (!start||!end) { setErr("請選擇旅遊日期"); return; }
+    if (end<start) { setErr("結束日期不可早於開始日期"); return; }
+    onCreated({ name:name.trim(), startDate:start, endDate:end, cover:COVER_GRADIENTS[cover] });
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", flex:1, overflowY:"auto" }} className="fade-in">
+      <div style={{ height:190, background:COVER_GRADIENTS[cover], flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <button onClick={() => setCover(p => (p+1)%COVER_GRADIENTS.length)} className="btn-pop"
+          style={{ background:"rgba(0,0,0,0.3)", border:"2px dashed rgba(255,255,255,0.6)", borderRadius:12, padding:"10px 18px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+          <IcCamera size={22}/>
+          <span style={{ ...tx(T.caption), color:C.bg }}>點擊更換封面</span>
+        </button>
+      </div>
+      <p style={{ textAlign:"center", ...tx(T.capSub), color:C.textHint, margin:"12px 0 20px" }}>輸入行程名稱並選擇旅遊日期，開始規劃你的旅程</p>
+      <div style={{ padding:"0 24px", display:"flex", flexDirection:"column", gap:20, flex:1 }}>
+        <div>
+          <label style={{ ...tx(T.label), color:C.accent, marginBottom:8, display:"block" }}>行程名稱</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="例如：快快樂樂出航"
+            style={{ width:"100%", padding:"14px 16px", borderRadius:12, border:"1px solid rgba(100,116,139,0.4)", background:C.bgInput, ...tx(T.input), color:C.text, boxSizing:"border-box", outline:"none" }}/>
+        </div>
+        <div>
+          <label style={{ ...tx(T.label), color:C.accent, marginBottom:8, display:"block" }}>日期</label>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <DateSelect label="開始日期" value={start} onChange={setStart}/>
+            <DateSelect label="結束日期" value={end} onChange={setEnd}/>
+          </div>
+        </div>
+        {err && <p style={{ color:"#e53e3e", ...tx(T.capSub), margin:0 }}>{err}</p>}
+      </div>
+      <div style={{ padding:"24px 16px 16px" }}>
+        <OrangeBtn label="創建" onClick={go}/>
+      </div>
+    </div>
+  );
+}
+
+function TripScreen({ trip, spotsMap, setSpotsMap, onBack }) {
+  const days = buildDays(trip.startDate, trip.endDate);
+  const tripKey = trip.name+trip.startDate;
+  const spots = spotsMap[tripKey] || days.map(() => []);
+  const setSpots = fn => setSpotsMap(prev => ({ ...prev, [tripKey]: fn(prev[tripKey]||days.map(()=>[])) }));
+  const [activeDay, setActiveDay] = useState(0);
+  const [prevDay, setPrevDay] = useState(0);
+  const [sub, setSub] = useState(null);
+  const [target, setTarget] = useState(null);
+  const [toast, setToast] = useState("");
+  const [actionSheet, setActionSheet] = useState(null);
+  const [dragging, setDragging] = useState(null);
+  const [over, setOver] = useState(null);
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2000); };
+  const curDayIdx = activeDay===0 ? null : activeDay-1;
+  const changeDay = next => { setPrevDay(activeDay); setActiveDay(next); };
+  const moveSpot = (from, to) => setSpots(p => { const n=p.map(d=>[...d]); const [item]=n[curDayIdx].splice(from,1); n[curDayIdx].splice(to,0,item); return n; });
+  const deleteSpot = si => { setSpots(p => { const n=p.map(d=>[...d]); n[curDayIdx].splice(si,1); return n; }); showToast("已刪除景點"); };
+
+  if (sub==="addSpot") return <AddSpotScreen dayLabel={days[curDayIdx].label}
+    onAdd={list => { setSpots(p => { const n=p.map(d=>[...d]); n[curDayIdx]=[...n[curDayIdx],...list]; return n; }); setSub(null); showToast("已加入 "+list.length+" 個景點"); }}
+    onBack={() => setSub(null)}/>;
+  if (sub==="editNote") return <EditNoteScreen spot={spots[curDayIdx]?.[target]}
+    onSave={note => { setSpots(p => { const n=p.map(d=>d.map(s=>({...s}))); n[curDayIdx][target].note=note; return n; }); setSub(null); showToast("備註已儲存"); }}
+    onBack={() => setSub(null)}/>;
+  if (sub==="viewSpot") {
+    const [di,si] = target;
+    return <ViewpointScreen spot={(spots[di]||[])[si]} onBack={() => setSub(null)} onAddToTrip={() => { setSub(null); showToast("景點已在行程中"); }}/>;
+  }
+  const dirClass = activeDay>prevDay ? "slide-left" : "slide-right";
+  const ShareOverlay = () => {
+    const [copied, setCopied] = useState(false);
+    const link = "https://o-go.app/trips/"+encodeURIComponent(trip.name);
+    return (
+      <>
+        <div onClick={() => setSub(null)} style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.45)", zIndex:20 }}/>
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, zIndex:21, background:C.bg, borderRadius:"20px 20px 0 0", padding:"24px 24px 40px" }}>
+          <div style={{ width:40, height:4, background:"#e0e0e0", borderRadius:2, margin:"0 auto 16px" }}/>
+          <h3 style={{ textAlign:"center", ...tx(T.headline), margin:"0 0 12px" }}>分享行程</h3>
+          <div style={{ background:"#f2f2f7", borderRadius:10, padding:"12px 14px", ...tx(T.capSub), color:"#555", wordBreak:"break-all", marginBottom:16 }}>{link}</div>
+          <div style={{ display:"flex", justifyContent:"space-around", marginBottom:16 }}>
+            {[["複製連結",true],["傳送訊息",false],["電子郵件",false]].map(([label,primary]) => (
+              <button key={label} onClick={primary?() => { setCopied(true); setTimeout(()=>{setCopied(false);setSub(null);},1200); }:undefined}
+                style={{ background:"none", border:"none", cursor:primary?"pointer":"default", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+                <div style={{ width:56, height:56, borderRadius:16, background:primary?C.accent:"#f2f2f7", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {label==="複製連結"&&<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+                  {label==="傳送訊息"&&<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.textHint} strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
+                  {label==="電子郵件"&&<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.textHint} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+                </div>
+                <span style={{ ...tx(T.caption), color:primary?C.accent:"#555" }}>{label}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setSub(null)} style={{ width:"100%", background:"#f2f2f7", border:"none", borderRadius:12, padding:14, ...tx(T.body), color:"#555", cursor:"pointer" }}>取消</button>
+          {copied && <div style={{ position:"absolute", top:"30%", left:"50%", transform:"translate(-50%,-50%)", background:"rgba(0,0,0,0.75)", color:C.bg, padding:"12px 24px", borderRadius:20, ...tx(T.label) }}>連結已複製！</div>}
+        </div>
+      </>
+    );
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", position:"relative" }}>
+      <div style={{ height:160, background:trip.cover||COVER_GRADIENTS[0], flexShrink:0 }}>
+        <GlassBar onBack={onBack} rightSlot={
+          <div style={{ background:"rgba(255,255,255,0.65)", backdropFilter:"blur(8px)", borderRadius:296, height:44, display:"flex", alignItems:"center", padding:"0 8px", gap:16 }}>
+            <button onClick={() => { const s=spots[curDayIdx!==null?curDayIdx:0]||[]; if(!s.length){showToast("本日尚未加入景點");return;} window.open("https://www.google.com/maps/dir/"+s.map(x=>encodeURIComponent(x.name)).join("/"),"_blank"); }} style={{ background:"none", border:"none", cursor:"pointer", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <IcMap color={C.text} size={22}/>
+            </button>
+            <button onClick={() => setSub("share")} style={{ background:"none", border:"none", cursor:"pointer", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <IcShare color={C.text} size={22}/>
+            </button>
+          </div>
+        }/>
+      </div>
+      <div style={{ background:C.bg, boxShadow:"0 2px 6px rgba(0,0,0,0.05)", flexShrink:0 }}>
+        <div style={{ padding:"16px 24px 0" }}>
+          <div style={{ fontFamily:FF, fontSize:24, fontWeight:700, color:C.text, lineHeight:1.3 }}>{trip.name}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, marginBottom:10 }}>
+            <IcCalendar color={C.accent} size={16}/>
+            <span style={{ fontFamily:FF, fontSize:15, fontWeight:600, color:C.accent }}>{trip.startDate} ~ {trip.endDate}</span>
+          </div>
+        </div>
+        <div style={{ display:"flex", borderTop:"0.5px solid "+C.line, alignItems:"stretch" }}>
+          <button onClick={() => changeDay(0)} style={{ flexShrink:0, background:"none", border:"none", cursor:"pointer", padding:"0 16px", display:"flex", alignItems:"center", borderBottom:activeDay===0?"3px solid "+C.accent:"3px solid transparent", height:52 }}>
+            <span style={{ fontFamily:FF, fontSize:15, fontWeight:activeDay===0?600:400, color:activeDay===0?C.accent:C.textHint }}>行程概覽</span>
+          </button>
+          <div style={{ width:1, background:C.line, margin:"10px 0", flexShrink:0 }}/>
+          <div style={{ display:"flex", overflowX:"auto", flex:1 }}>
+            {days.map((d,i) => {
+              const on = activeDay===i+1;
+              return (
+                <button key={i} onClick={() => changeDay(i+1)} style={{ flexShrink:0, background:"none", border:"none", cursor:"pointer", padding:"0 12px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:on?"3px solid "+C.accent:"3px solid transparent", minWidth:64, height:52, gap:2 }}>
+                  <span style={{ fontFamily:FF, fontSize:12, fontWeight:500, color:on?C.accent:C.textHint }}>{d.short}</span>
+                  <span style={{ fontFamily:FF, fontSize:15, fontWeight:on?600:400, color:on?C.accent:C.textHint }}>Day{i+1}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto" }}>
+        {activeDay===0
+          ? <div key="ov" className={activeDay<prevDay?"slide-left":"slide-right"}><OverviewTab days={days} spots={spots}/></div>
+          : <div key={"d"+activeDay} className={dirClass}>
+              <DayTab spots={spots[curDayIdx]||[]} dragging={dragging} over={over} setDragging={setDragging} setOver={setOver} onMove={moveSpot} onDots={i=>setActionSheet(i)} onViewSpot={i=>{setTarget([curDayIdx,i]);setSub("viewSpot");}}/>
+            </div>
+        }
+      </div>
+      {activeDay!==0 && (
+        <div style={{ padding:"12px 16px 16px", borderTop:"0.5px solid "+C.line, flexShrink:0, background:C.bg }}>
+          <OrangeBtn label="搜尋並新增景點" onClick={() => setSub("addSpot")}/>
+        </div>
+      )}
+      {sub==="share" && <ShareOverlay/>}
+      {actionSheet!==null && (
+        <>
+          <div onClick={() => setActionSheet(null)} style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.4)", zIndex:10 }}/>
+          <div style={{ position:"absolute", bottom:0, left:0, right:0, zIndex:11, background:C.bg, borderRadius:"16px 16px 0 0", padding:"16px 24px 32px" }}>
+            <div style={{ width:40, height:4, background:"#e0e0e0", borderRadius:2, margin:"0 auto 16px" }}/>
+            <div style={{ ...tx(T.label), color:C.textHint, marginBottom:12, textAlign:"center" }}>{(spots[curDayIdx]||[])[actionSheet]?.name}</div>
+            <button onClick={() => { setTarget(actionSheet); setSub("editNote"); setActionSheet(null); }} style={{ width:"100%", background:"#f2f2f7", border:"none", borderRadius:12, padding:"14px", ...tx(T.body), color:C.text, cursor:"pointer", marginBottom:8, textAlign:"left" }}>新增備註</button>
+            <button onClick={() => { deleteSpot(actionSheet); setActionSheet(null); }} style={{ width:"100%", background:"#fff0ed", border:"none", borderRadius:12, padding:"14px", ...tx(T.body), color:C.accent, cursor:"pointer", textAlign:"left" }}>刪除景點</button>
+          </div>
+        </>
+      )}
+      {toast && <div style={{ position:"absolute", bottom:80, left:"50%", transform:"translateX(-50%)", background:"rgba(0,0,0,0.7)", color:C.bg, padding:"8px 20px", borderRadius:20, ...tx(T.caption), whiteSpace:"nowrap", zIndex:99 }}>{toast}</div>}
+    </div>
+  );
+}
+
+function OverviewTab({ days, spots }) {
+  return (
+    <div style={{ padding:"16px 24px" }}>
+      {days.map((d,i) => (
+        <div key={i} style={{ marginBottom:24 }}>
+          <div style={{ ...tx(T.label), color:C.accent, marginBottom:8 }}>Day{i+1} · {d.label}</div>
+          {(spots[i]||[]).length===0
+            ? <div style={{ ...tx(T.capSub), color:C.textHint }}>尚未加入景點</div>
+            : (spots[i]||[]).map((s,j) => (
+              <div key={j} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"0.5px solid "+C.line }}>
+                <span style={{ fontFamily:FF, fontSize:16, fontWeight:500, color:C.accent, minWidth:20 }}>{j+1}</span>
+                <span style={{ ...tx(T.body), color:C.text, flex:1 }}>{s.name}</span>
+                {s.note && <span style={{ ...tx(T.capSub), color:C.textHint }}>📝 {s.note}</span>}
+              </div>
+            ))
+          }
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DayTab({ spots, dragging, over, setDragging, setOver, onMove, onDots, onViewSpot }) {
+  const end = () => { if(dragging!==null&&over!==null&&dragging!==over) onMove(dragging,over); setDragging(null); setOver(null); };
+  if (!spots.length) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 32px", gap:16 }}>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M21 10C21 17 12 23 12 23S3 17 3 10C3 7.61 3.95 5.32 5.64 3.64C7.32 1.95 9.61 1 12 1C14.39 1 16.68 1.95 18.36 3.64C20.05 5.32 21 7.61 21 10Z" stroke={C.textHint} strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 13C13.66 13 15 11.66 15 10C15 8.34 13.66 7 12 7C10.34 7 9 8.34 9 10C9 11.66 10.34 13 12 13Z" stroke={C.textHint} strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <p style={{ fontFamily:FF, fontSize:14, color:C.textHint, textAlign:"center", lineHeight:1.8, margin:0 }}>這天想去哪些景點呢？<br/>點下方按鈕搜尋景點</p>
+    </div>
+  );
+  return (
+    <div style={{ position:"relative", padding:"8px 0 0 24px" }}>
+      <div style={{ position:"absolute", left:28, top:20, bottom:20, width:1, background:C.accent+"40" }}/>
+      {spots.map((s,i) => (
+        <div key={i} draggable onDragStart={()=>setDragging(i)} onDragEnter={()=>setOver(i)} onDragEnd={end} onDragOver={e=>e.preventDefault()}
+          style={{ display:"flex", alignItems:"center", height:64, opacity:dragging===i?0.4:1, background:over===i&&dragging!==i?"#fff5f1":"transparent" }}>
+          <div style={{ width:11, height:11, borderRadius:"50%", background:C.accent, flexShrink:0, zIndex:1, boxShadow:"0 0 0 3px rgba(253,110,68,0.15)" }}/>
+          <div style={{ flex:1, display:"flex", alignItems:"center", borderBottom:"0.333px solid "+C.line, height:"100%", marginLeft:12 }}>
+            <div style={{ flex:1, cursor:"pointer" }} onClick={() => onViewSpot(i)}>
+              <div style={{ ...tx(T.body), color:C.text }}>{s.name}</div>
+              {s.note && <div style={{ fontFamily:FF, fontSize:14, color:C.textSub }}>{s.note}</div>}
+            </div>
+            <button onClick={() => onDots(i)} style={{ background:"none", border:"none", cursor:"pointer", padding:0, display:"flex", alignItems:"center", height:"100%" }}><IcDots/></button>
+            <div style={{ cursor:"grab" }}><IcGrabber/></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AddSpotScreen({ dayLabel, onAdd, onBack }) {
+  const [query, setQuery] = useState("");
+  const [country, setCountry] = useState("japan");
+  const [selected, setSelected] = useState([]);
+  const [viewSpot, setViewSpot] = useState(null);
+  const filtered = query.trim()
+    ? ALL_SPOTS.filter(s => s.name.includes(query)||s.area.includes(query))
+    : ALL_SPOTS.filter(s => !HIDE_DEFAULT.includes(s.name)).filter(s => SPOT_DB[country]?.includes(s));
+  const toggle = name => setSelected(p => p.includes(name)?p.filter(x=>x!==name):[...p,name]);
+  if (viewSpot) return <ViewpointScreen spot={viewSpot} onBack={() => setViewSpot(null)} onAddToTrip={() => { if(!selected.includes(viewSpot.name)) toggle(viewSpot.name); setViewSpot(null); }}/>;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+      <NavBar title={dayLabel+" · 新增景點"} onBack={onBack}/>
+      <div style={{ padding:"12px 16px 0" }}>
+        <div style={{ background:"#f2f2f7", borderRadius:10, padding:"8px 14px", display:"flex", alignItems:"center", gap:8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textHint} strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜尋景點名稱..." style={{ border:"none", background:"transparent", flex:1, ...tx(T.body), outline:"none" }}/>
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:8, padding:"10px 16px 4px", overflowX:"auto" }}>
+        {COUNTRY_TABS.map(t => (
+          <button key={t.id} onClick={() => { setCountry(t.id); setQuery(""); }} style={{ flexShrink:0, background:country===t.id&&!query?C.accent:"#f2f2f7", color:country===t.id&&!query?C.bg:C.text, border:"none", borderRadius:16, padding:"5px 14px", ...tx(T.caption), cursor:"pointer" }}>{t.label}</button>
+        ))}
+      </div>
+      <div style={{ flex:1, overflowY:"auto" }}>
+        {query.trim()&&filtered.length===0 && (
+          <div style={{ textAlign:"center", padding:"40px 20px" }}>
+            <div style={{ ...tx(T.body), color:C.textHint, marginBottom:8 }}>找不到相關景點</div>
+            <div style={{ ...tx(T.capSub), color:C.textHint }}>你仍可以直接加入這個景點</div>
+            <button className="btn-pop" onClick={() => onAdd([{name:query.trim(),note:"",area:"自訂景點",tags:[],rating:0}])}
+              style={{ marginTop:16, background:C.accent, color:C.bg, border:"none", borderRadius:20, padding:"8px 24px", ...tx(T.label), cursor:"pointer" }}>
+              加入「{query.trim()}」
+            </button>
+          </div>
+        )}
+        {filtered.map(s => {
+          const isSel = selected.includes(s.name);
+          return (
+            <div key={s.name} style={{ display:"flex", alignItems:"center", padding:"0 16px", height:64, borderBottom:"0.5px solid "+C.line }}>
+              <div style={{ flex:1, cursor:"pointer", height:"100%", display:"flex", alignItems:"center" }} onClick={() => setViewSpot(s)}>
+                <div>
+                  <div style={{ fontFamily:FF, fontSize:16, fontWeight:500, color:C.text }}>{s.name}</div>
+                  <div style={{ ...tx(T.capSub), color:C.textHint }}>{s.area}</div>
+                </div>
+              </div>
+              <StarRow count={s.rating}/>
+              <button onClick={() => toggle(s.name)} style={{ marginLeft:12, width:32, height:32, borderRadius:"50%", background:isSel?C.accent:"transparent", border:"2px solid "+(isSel?C.accent:"#ccc"), display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:"pointer" }}>
+                {isSel ? <svg width="14" height="11" viewBox="0 0 14 11" fill="none"><path d="M1 5.5L5 9.5L13 1.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                       : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="#ccc" strokeWidth="2" strokeLinecap="round"/></svg>}
+              </button>
+            </div>
+          );
+        })}
+        <div style={{ height:100 }}/>
+      </div>
+      {selected.length>0 && (
+        <div style={{ padding:"12px 16px 16px", borderTop:"0.5px solid "+C.line, background:C.bg, flexShrink:0 }}>
+          <OrangeBtn label={"加入 "+selected.length+" 個景點"} onClick={() => { const list=selected.map(n=>ALL_SPOTS.find(s=>s.name===n)||{name:n,note:"",area:"自訂景點",tags:[],rating:0}); onAdd(list); }}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditNoteScreen({ spot, onSave, onBack }) {
+  const [note, setNote] = useState(spot?.note||"");
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bg }}>
+      <div style={{ height:220, background:"linear-gradient(160deg,#e8e8e8,#ccc)", flexShrink:0 }}>
+        <GlassBar onBack={onBack} rightSlot={
+          <button onClick={() => onSave(note)} className="btn-pop" style={{ background:"rgba(255,255,255,0.65)", backdropFilter:"blur(8px)", border:"none", borderRadius:296, height:44, padding:"0 18px", ...tx(T.label), color:C.text, cursor:"pointer" }}>儲存</button>
+        }/>
+      </div>
+      <div style={{ background:C.bg, padding:"20px 24px", boxShadow:"0 2px 6px rgba(0,0,0,0.05)", flexShrink:0 }}>
+        <div style={{ fontFamily:FF, fontSize:24, fontWeight:700, color:C.text, marginBottom:6 }}>{spot?.name}</div>
+        <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+          {spot?.tags?.map(tag => <span key={tag} style={{ background:C.accent, color:C.bg, borderRadius:16, padding:"3px 12px", fontFamily:FF, fontSize:11, fontWeight:500 }}>{tag}</span>)}
+        </div>
+        <div style={{ fontFamily:FF, fontSize:14, fontWeight:600, color:C.textHint, lineHeight:2 }}>
+          {spot?.phone && <div>{spot.phone}</div>}
+          {spot?.address && <div>{spot.address}</div>}
+        </div>
+      </div>
+      <div style={{ flex:1, padding:"20px 24px", display:"flex", flexDirection:"column", gap:8 }}>
+        <label style={{ fontFamily:FF, fontSize:16, fontWeight:600, color:C.accent, display:"block", marginBottom:4 }}>行程備註</label>
+        <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="例如：停留三小時" maxLength={120}
+          style={{ flex:1, borderRadius:12, border:"1px solid rgba(100,116,139,0.4)", background:C.bgInput, padding:"12px 16px", fontFamily:FF, fontSize:14, resize:"none", outline:"none", boxSizing:"border-box" }}/>
+        <div style={{ textAlign:"right", ...tx(T.capSub), color:C.textHint }}>{note.length}/120</div>
+      </div>
+      <div style={{ padding:"12px 16px 16px", borderTop:"0.5px solid "+C.line }}>
+        <OrangeBtn label="儲存備註" onClick={() => onSave(note)}/>
+      </div>
+    </div>
+  );
+}
+
+function ViewpointScreen({ spot, onBack, onAddToTrip }) {
+  const [liked, setLiked] = useState(false);
+  if (!spot) return null;
+  const mapsUrl = "https://www.google.com/maps/search/"+encodeURIComponent(spot.name);
+  const reviews = [
+    { user:"User1234", rating:4, text:"景色非常美麗，強烈推薦！環境整潔，工作人員也很親切。" },
+    { user:"Traveler88", rating:5, text:"必去景點！建議早上前往人潮較少，拍照效果最好。" },
+    { user:"Explorer99", rating:4, text:"整體體驗很好，附近也有不少美食可以順路品嚐。" },
+  ];
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bg }}>
+      <div style={{ height:220, background:"linear-gradient(160deg,#e8e8e8,#ccc)", flexShrink:0 }}>
+        <GlassBar onBack={onBack} rightSlot={
+          <div style={{ background:"rgba(255,255,255,0.65)", backdropFilter:"blur(8px)", borderRadius:296, height:44, display:"flex", alignItems:"center", padding:"0 8px", gap:16 }}>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", width:36, height:36, justifyContent:"center" }}><IcMap color={C.text} size={22}/></a>
+            <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", width:36, height:36, justifyContent:"center" }}><IcShare color={C.text} size={22}/></button>
+          </div>
+        }/>
+      </div>
+      <div style={{ flex:1, overflowY:"auto" }}>
+        <div style={{ background:C.bg, padding:"20px 24px", boxShadow:"0 2px 6px rgba(0,0,0,0.05)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+            <div style={{ fontFamily:FF, fontSize:24, fontWeight:700, color:C.text, flex:1 }}>{spot.name}</div>
+            <button onClick={() => setLiked(p=>!p)} style={{ background:"none", border:"none", cursor:"pointer", padding:4, marginTop:4 }}><IcHeart filled={liked} size={24}/></button>
+          </div>
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            {spot.tags?.map(tag => <span key={tag} style={{ background:C.accent, color:C.bg, borderRadius:16, padding:"3px 12px", fontFamily:FF, fontSize:11, fontWeight:500 }}>{tag}</span>)}
+          </div>
+          <div style={{ fontFamily:FF, fontSize:14, fontWeight:600, color:C.textHint, lineHeight:2, paddingBottom:4 }}>
+            {spot.phone && <div>{spot.phone}</div>}
+            {spot.address && <div>{spot.address}</div>}
+          </div>
+        </div>
+        <div style={{ padding:"16px 24px" }}>
+          <div style={{ fontFamily:FF, fontSize:16, fontWeight:600, color:C.accent, letterSpacing:"1px", marginBottom:6 }}>景點介紹</div>
+          <div style={{ fontFamily:FF, fontSize:14, color:C.textSub, lineHeight:"22px" }}>{spot.intro||"暫無景點介紹"}</div>
+        </div>
+        <div style={{ padding:"0 24px 16px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <span style={{ fontFamily:FF, fontSize:16, fontWeight:600, color:C.accent, letterSpacing:"1px" }}>評論</span>
+            <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+              <StarRow count={spot.rating||4}/>
+              <span style={{ fontFamily:FF, fontSize:14, color:"#9b9b9b" }}>(3)</span>
+            </div>
+          </div>
+          {reviews.map((r,i) => (
+            <div key={i} style={{ borderBottom:"0.5px solid #dedede", paddingBottom:12, marginBottom:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:6 }}>
+                <StarRow count={r.rating}/>
+                <span style={{ fontFamily:FF, fontSize:14, fontWeight:500, color:C.textSub }}>{r.user}</span>
+              </div>
+              <div style={{ fontFamily:FF, fontSize:14, color:C.textSub, lineHeight:"22px" }}>{r.text}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ height:20 }}/>
+      </div>
+      <div style={{ padding:"12px 16px 16px", borderTop:"0.5px solid "+C.line, flexShrink:0 }}>
+        <OrangeBtn label="加入行程" onClick={onAddToTrip}/>
+      </div>
+    </div>
+  );
+}
+
+function buildDays(start, end) {
+  const days=[], cur=new Date(start), last=new Date(end);
+  while(cur<=last){
+    const mo=cur.getMonth()+1, d=cur.getDate();
+    const wd=["日","一","二","三","四","五","六"][cur.getDay()];
+    days.push({ label:mo+"/"+d+" 週"+wd, short:String(mo).padStart(2,"0")+"/"+String(d).padStart(2,"0") });
+    cur.setDate(cur.getDate()+1);
+  }
+  return days;
+}
+
+function App() {
+  const [tab, setTab] = useState("create");
+  const [trips, setTrips] = useState([]);
+  const [openIdx, setOpenIdx] = useState(null);
+  const [spotsMap, setSpotsMap] = useState({});
+  const handleCreated = trip => { const idx=trips.length; setTrips(p=>[...p,trip]); setOpenIdx(idx); setTab("trips"); };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bg, fontFamily:FF, overflow:"hidden" }}>
+      {openIdx!==null&&trips[openIdx] ? (
+        <TripScreen trip={trips[openIdx]} spotsMap={spotsMap} setSpotsMap={setSpotsMap} onBack={() => setOpenIdx(null)}/>
+      ) : (
+        <>
+          <NavBar title={tab==="home"?"探索":tab==="trips"?"我的行程":tab==="create"?"建立行程":"個人中心"}/>
+          <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column" }}>
+            {tab==="home"    && <HomeScreen/>}
+            {tab==="trips"   && <TripsScreen trips={trips} onOpen={i=>setOpenIdx(i)}/>}
+            {tab==="create"  && <CreateScreen onCreated={handleCreated}/>}
+            {tab==="profile" && <ProfileScreen/>}
+          </div>
+          <TabBar active={tab} onChange={t=>{setTab(t);setOpenIdx(null);}}/>
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
